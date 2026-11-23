@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bible Highlight</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <button id="menuButton" class="icon-button" type="button" aria-label="Open books" aria-expanded="false">☰</button>
+    <button id="bookButton" class="location-button" type="button">
+      <strong id="bookName">Genesis</strong>
+      <span id="chapterLabel">Chapter 1</span>
+    </button>
+    <div class="header-actions">
+      <button id="bookmarkButton" class="icon-button" type="button" aria-label="Save bookmark" title="Save bookmark">☆</button>
+      <button id="bookmarksButton" class="icon-button" type="button" aria-label="View bookmarks" title="View bookmarks">▤</button>
+      <button id="searchButton" class="icon-button" type="button" aria-label="Search">⌕</button>
+      <button id="accountButton" class="icon-button" type="button" aria-label="Profile or guest options" title="Profile or guest options">♙</button>
+      <button id="settingsButton" class="icon-button" type="button" aria-label="Settings" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <aside id="bookPanel" class="book-panel" aria-hidden="true">
+    <div class="panel-heading">
+      <h2>Books</h2>
+      <button id="closeBooks" class="icon-button" type="button" aria-label="Close books">×</button>
+    </div>
+    <div class="testament-tabs" role="tablist" aria-label="Testament">
+      <button id="oldTestamentTab" class="testament-tab active" type="button" role="tab" aria-selected="true" data-testament="old">Old Testament</button>
+      <button id="newTestamentTab" class="testament-tab" type="button" role="tab" aria-selected="false" data-testament="new">New Testament</button>
+    </div>
+    <div id="bookList" class="book-list"></div>
+  </aside>
+  <div id="overlay" class="overlay"></div>
+
+  <main class="content">
+    <div id="chapterTitle" class="chapter-title">Genesis 1</div>
+    <p id="kidsHint" class="kids-hint">Tap a verse to hear it read aloud.</p>
+    <div class="study-actions">
+      <button id="openNotes" type="button">📝 My notes</button>
+      <button id="openPrayerList" type="button">🙏 Prayer list</button>
+    </div>
+    <article id="verses" class="verses" aria-live="polite"></article>
+  </main>
+
+  <details class="speech-controls" open>
+    <summary>🔊 Read aloud</summary>
+    <div class="speech-control-panel" aria-label="Text-to-speech controls">
+      <span id="readingStatus" class="reading-status" role="status">Drag over the words to read, then choose Read selection.</span>
+      <button id="playSelection" type="button" title="Read the text you selected">▶ Read selection</button>
+      <button id="playVerse" type="button" title="Read selected verse">▶ Verse</button>
+      <button id="playChapter" type="button" title="Read from the selected verse to the end of the chapter">▶ From verse</button>
+      <button id="pauseSpeech" type="button" title="Pause speech">Ⅱ</button>
+      <button id="stopSpeech" type="button" title="Stop speech">■</button>
+      <label class="voice-control" title="Choose a voice installed in your browser">
+        <span>Voice</span>
+        <select id="speechVoice" aria-label="Speech voice">
+          <option value="">Best available English voice</option>
+        </select>
+      </label>
+      <label class="speed-control" title="Speech speed">
+        <span>Speed</span>
+        <select id="speechSpeed" aria-label="Speech speed">
+          <option value="0.75">0.75×</option>
+          <option value="0.9" selected>0.9×</option>
+          <option value="1">1×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+        </select>
+      </label>
+    </div>
+  </details>
+
+  <dialog id="searchDialog">
+    <form method="dialog" class="search-box">
+      <div class="search-header">
+        <input id="searchInput" type="search" placeholder="Search the Bible">
+        <button value="cancel" class="icon-button" aria-label="Close search">×</button>
+      </div>
+      <div id="searchResults" class="search-results"></div>
+    </form>
+  </dialog>
+
+  <dialog id="bookmarksDialog">
+    <div class="bookmarks-box">
+      <div class="search-header">
+        <h2>Bookmarks</h2>
+        <button id="closeBookmarks" class="icon-button" type="button" aria-label="Close bookmarks">×</button>
+      </div>
+      <div id="bookmarksList" class="bookmarks-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="settingsDialog" class="settings-dialog">
+    <div class="settings-box">
+      <div class="settings-header">
+        <h2>Reading settings</h2>
+        <button id="closeSettings" class="icon-button" type="button" aria-label="Close settings">×</button>
+      </div>
+      <label class="setting-row" for="speechVolume">
+        <span>Speech volume</span>
+        <output id="speechVolumeValue" for="speechVolume">100%</output>
+        <input id="speechVolume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Speech volume">
+      </label>
+      <label class="setting-toggle">
+        <input id="quietMode" type="checkbox">
+        <span>Quiet mode (mute narration)</span>
+      </label>
+      <label class="setting-row" for="sleepTimer">
+        <span>Sleep timer</span>
+        <select id="sleepTimer" aria-label="Sleep timer">
+          <option value="0">Off</option>
+          <option value="15">15 minutes</option>
+          <option value="30">30 minutes</option>
+          <option value="45">45 minutes</option>
+          <option value="60">60 minutes</option>
+        </select>
+      </label>
+      <p class="settings-help">The timer starts when you begin reading and stops narration when time is up.</p>
+      <label class="setting-toggle">
+        <input id="bedtimeMode" type="checkbox">
+        <span>Bedtime mode (dim screen and slow narration)</span>
+      </label>
+      <label class="setting-toggle">
+        <input id="kidsMode" type="checkbox">
+        <span>Kids Mode (tap a verse to hear it)</span>
+      </label>
+      <label class="setting-row" for="backgroundTheme">
+        <span>Background style</span>
+        <select id="backgroundTheme" aria-label="Background style">
+          <option value="plain">Plain paper</option>
+          <option value="auto">Scene for this passage (auto)</option>
+          <option value="space">Space</option>
+          <option value="cross">Sunrise cross</option>
+          <option value="jesus">Jesus illustration</option>
+        </select>
+      </label>
+      <p class="settings-help">The automatic scene uses setting words in the chapter or selected verse to choose an illustration. It is a visual suggestion, not an exact historical reconstruction.</p>
+    </div>
+  </dialog>
+
+  <dialog id="accountDialog" class="account-dialog">
+    <div class="account-box">
+      <div class="settings-header">
+        <h2>Your profile or guest mode</h2>
+        <button id="closeAccount" class="icon-button" type="button" aria-label="Close account options">×</button>
+      </div>
+      <p class="settings-help">Add a name and email for this device, or continue without them. There is no password or sign-in.</p>
+      <form id="profileForm" class="account-form">
+        <label class="account-field" for="profileName">
+          Name
+          <input id="profileName" type="text" maxlength="80" autocomplete="name" placeholder="Your name" required>
+        </label>
+        <label class="account-field" for="accountEmail">
+          Email
+          <input id="accountEmail" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com" required>
+        </label>
+        <button class="primary-action" type="submit">Save name and email on this device</button>
+      </form>
+      <p class="account-setup-note">This local profile is not verified. Your name and email are saved only in this browser; they are not sent or synced.</p>
+      <button id="continueAsGuest" class="primary-action" type="button">Continue as guest</button>
+    </div>
+  </dialog>
+
+  <dialog id="notesDialog" class="notes-dialog">
+    <div class="notes-box">
+      <div class="settings-header">
+        <h2>My Bible notes</h2>
+        <button id="closeNotes" class="icon-button" type="button" aria-label="Close notes">×</button>
+      </div>
+      <p class="settings-help">Notes and labels are private and saved on this device.</p>
+      <h3 id="verseLabelsHeading">Labels for this verse</h3>
+      <form id="verseLabelForm" class="verse-label-form">
+        <label class="editor-label" for="verseLabelInput">Add a label (for example, Prayer or Hope)</label>
+        <div class="verse-label-entry">
+          <input id="verseLabelInput" type="text" maxlength="40" autocomplete="off" placeholder="Type a label">
+          <button type="submit">Add label</button>
+        </div>
+      </form>
+      <p id="verseLabelStatus" class="account-setup-note" role="status"></p>
+      <div id="verseLabelsList" class="verse-label-list" aria-labelledby="verseLabelsHeading"></div>
+      <label class="editor-label" id="noteReference" for="noteText">Note for this verse</label>
+      <textarea id="noteText" maxlength="4000" placeholder="Write a note about this verse"></textarea>
+      <div class="editor-actions">
+        <button id="saveNote" type="button">Save note</button>
+        <button id="deleteNote" type="button">Delete note</button>
+      </div>
+      <h3>Saved notes</h3>
+      <div id="notesList" class="notes-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="prayerDialog" class="prayer-dialog">
+    <div class="prayer-box">
+      <div class="settings-header">
+        <h2>My prayer list</h2>
+        <button id="closePrayerList" class="icon-button" type="button" aria-label="Close prayer list">×</button>
+      </div>
+      <p class="settings-help">Prayer requests are private and saved on this device for now.</p>
+      <label class="editor-label" for="prayerText">Prayer request</label>
+      <textarea id="prayerText" maxlength="2000" placeholder="Write a prayer request"></textarea>
+      <label class="prayer-reference" for="prayerReference">
+        Bible reference (optional)
+        <input id="prayerReference" type="text" maxlength="80" placeholder="For example, Psalm 23">
+      </label>
+      <button id="addPrayerRequest" class="primary-action" type="button">Add to my prayer list</button>
+      <div id="prayerList" class="prayer-list"></div>
+    </div>
+  </dialog>
+
+  <nav class="chapter-nav" aria-label="Chapter navigation">
+    <button id="previousChapter" type="button">← Previous</button>
+    <div class="reference-selects">
+      <select id="chapterSelect" aria-label="Choose chapter"></select>
+      <select id="verseSelect" aria-label="Choose verse"></select>
+    </div>
+    <button id="nextChapter" type="button">Next →</button>
+  </nav>
+
+  <script src="asv.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
