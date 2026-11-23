@@ -3,6 +3,8 @@
   --ink: #18212b;
   --muted: #6d7783;
   --paper: #fbfaf7;
+  --surface: #ffffff;
+  --surface-hover: #f1eee5;
   --accent: #3d5e75;
   --line: #ddd9cf;
   --highlight: #fff1a8;
@@ -64,11 +66,14 @@ body.reading-scene-garden::before { background-image: url("reading-garden-backgr
 body.reading-scene-night::before { background-image: url("reading-night-background.svg"); }
 body.reading-scene-village::before { background-image: url("biblical-life-background.svg"); }
 
+body.dark-mode,
 body.bedtime-mode {
   color-scheme: dark;
   --ink: #e7e2d4;
   --muted: #a6a7ab;
   --paper: #17191f;
+  --surface: #20232a;
+  --surface-hover: #242832;
   --accent: #a7bfd0;
   --line: #363b44;
   --highlight: #64572a;
@@ -77,6 +82,10 @@ body.bedtime-mode {
 body.bedtime-mode.background-space::before,
 body.bedtime-mode.background-cross::before,
 body.bedtime-mode.background-jesus::before,
+body.dark-mode.background-space::before,
+body.dark-mode.background-cross::before,
+body.dark-mode.background-jesus::before,
+body.dark-mode.background-auto::before,
 body.bedtime-mode.background-auto::before {
   filter: brightness(0.7);
   opacity: 0.2;
@@ -132,15 +141,22 @@ button, select, input { font: inherit; }
   font-family: Arial, sans-serif;
   font-size: 20px;
 }
+body.dark-mode .topbar,
 body.bedtime-mode .topbar,
+body.dark-mode .speech-controls,
 body.bedtime-mode .speech-controls,
+body.dark-mode .chapter-nav,
 body.bedtime-mode .chapter-nav {
   background: rgba(23, 25, 31, 0.98);
 }
+body.dark-mode .verse:hover,
 body.bedtime-mode .verse:hover,
+body.dark-mode .speech-controls button:hover,
 body.bedtime-mode .speech-controls button:hover {
-  background: #242832;
+  background: var(--surface-hover);
 }
+body.dark-mode .book-item:hover,
+body.dark-mode .book-item.active,
 body.bedtime-mode .book-item:hover,
 body.bedtime-mode .book-item.active {
   color: #121820;
@@ -166,7 +182,7 @@ body.bedtime-mode .book-item.active {
   min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   color: var(--accent);
   cursor: pointer;
   padding: 8px 14px;
@@ -176,7 +192,7 @@ body.bedtime-mode .book-item.active {
 }
 .study-actions button:hover,
 .editor-actions button:hover,
-.primary-action:hover { background: #f1eee5; }
+.primary-action:hover { background: var(--surface-hover); }
 .chapter-title {
   margin-bottom: 28px;
   font-size: clamp(28px, 6vw, 42px);
@@ -197,7 +213,7 @@ body.bedtime-mode .book-item.active {
   user-select: text;
 }
 
-.verse:hover { background: #f1eee5; }
+.verse:hover { background: var(--surface-hover); }
 .verse.selected { background: var(--highlight); }
 .verse-number {
   color: #8a8172;
@@ -314,7 +330,7 @@ dialog {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0 12px;
-  background: #fff;
+  background: var(--surface);
   outline: none;
 }
 .search-results { max-height: calc(80vh - 78px); overflow-y: auto; }
@@ -508,21 +524,34 @@ dialog {
 .account-setup-note { margin: 12px 4px; color: var(--muted); font: 13px/1.5 Arial, sans-serif; }
 .account-box > .primary-action { width: 100%; }
 body.kids-mode .study-actions { display: none; }
+body.dark-mode .search-header input,
 body.bedtime-mode .search-header input,
+body.dark-mode .speed-control select,
 body.bedtime-mode .speed-control select,
+body.dark-mode .voice-control select,
 body.bedtime-mode .voice-control select,
+body.dark-mode .chapter-nav select,
 body.bedtime-mode .chapter-nav select,
+body.dark-mode .notes-box textarea,
 body.bedtime-mode .notes-box textarea,
+body.dark-mode .verse-label-entry input,
 body.bedtime-mode .verse-label-entry input,
+body.dark-mode .prayer-box textarea,
 body.bedtime-mode .prayer-box textarea,
-body.bedtime-mode .prayer-reference input {
-  background: #20232a;
+body.dark-mode .prayer-reference input,
+body.bedtime-mode .prayer-reference input,
+body.dark-mode .account-field input,
+body.bedtime-mode .account-field input {
+  background: var(--surface);
   color: var(--ink);
 }
+body.dark-mode .study-actions button,
 body.bedtime-mode .study-actions button,
+body.dark-mode .editor-actions button,
 body.bedtime-mode .editor-actions button,
+body.dark-mode .primary-action,
 body.bedtime-mode .primary-action {
-  background: #20232a;
+  background: var(--surface);
   color: var(--ink);
 }
 body.kids-mode .kids-hint {
@@ -659,7 +688,7 @@ body.kids-mode .speed-control {
   height: 34px;
   border: 1px solid var(--line);
   border-radius: 5px;
-  background: #fff;
+  background: var(--surface);
   padding: 0 4px;
 }
 .speed-control select {
@@ -696,7 +725,7 @@ body.kids-mode .speed-control {
   height: 34px;
   border: 1px solid var(--line);
   border-radius: 5px;
-  background: #fff;
+  background: var(--surface);
   text-align: center;
 }
 .reference-selects {

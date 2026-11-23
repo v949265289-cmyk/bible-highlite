@@ -20,6 +20,7 @@ const state = {
   currentSpeechTimer: null,
   quietMode: false,
   bedtimeMode: false,
+  darkMode: false,
   kidsMode: false,
   backgroundTheme: "plain"
 };
@@ -54,6 +55,8 @@ const elements = {
   quietMode: document.querySelector("#quietMode"),
   sleepTimer: document.querySelector("#sleepTimer"),
   bedtimeMode: document.querySelector("#bedtimeMode"),
+  darkMode: document.querySelector("#darkMode"),
+  themeButton: document.querySelector("#themeButton"),
   kidsMode: document.querySelector("#kidsMode"),
   backgroundTheme: document.querySelector("#backgroundTheme"),
   settingsDialog: document.querySelector("#settingsDialog"),
@@ -259,15 +262,31 @@ function loadReadingSettings() {
   elements.speechVolumeValue.value = `${Math.round(Number(elements.speechVolume.value) * 100)}%`;
   state.quietMode = localStorage.getItem("bibleQuietMode") === "true";
   state.bedtimeMode = localStorage.getItem("bibleBedtimeMode") === "true";
+  const savedDarkMode = localStorage.getItem("bibleDarkMode");
+  state.darkMode = savedDarkMode === null
+    ? window.matchMedia("(prefers-color-scheme: dark)").matches
+    : savedDarkMode === "true";
   state.kidsMode = localStorage.getItem("bibleKidsMode") === "true";
   elements.quietMode.checked = state.quietMode;
   elements.bedtimeMode.checked = state.bedtimeMode;
+  elements.darkMode.checked = state.darkMode;
   elements.kidsMode.checked = state.kidsMode;
   elements.sleepTimer.value = localStorage.getItem("bibleSleepTimer") || "0";
   applyBackgroundTheme(localStorage.getItem("bibleBackgroundTheme") || "plain");
+  applyDarkMode(state.darkMode);
   document.body.classList.toggle("bedtime-mode", state.bedtimeMode);
   document.body.classList.toggle("kids-mode", state.kidsMode);
   elements.speechControls.open = state.kidsMode || !compactSpeechControls.matches;
+}
+
+function applyDarkMode(enabled) {
+  state.darkMode = enabled;
+  document.body.classList.toggle("dark-mode", enabled);
+  elements.darkMode.checked = enabled;
+  elements.themeButton.textContent = enabled ? "☀" : "☾";
+  elements.themeButton.setAttribute("aria-label", enabled ? "Switch to light mode" : "Switch to dark mode");
+  elements.themeButton.title = enabled ? "Switch to light mode" : "Switch to dark mode";
+  localStorage.setItem("bibleDarkMode", String(enabled));
 }
 
 function applyBackgroundTheme(theme) {
@@ -950,6 +969,14 @@ elements.bedtimeMode.addEventListener("change", event => {
   setReadingStatus(state.bedtimeMode
     ? "Bedtime mode is on: the screen is dimmed and narration is slower."
     : "Bedtime mode is off.");
+});
+elements.darkMode.addEventListener("change", event => {
+  applyDarkMode(event.target.checked);
+  setReadingStatus(event.target.checked ? "Dark mode is on." : "Dark mode is off.");
+});
+elements.themeButton.addEventListener("click", () => {
+  applyDarkMode(!state.darkMode);
+  setReadingStatus(state.darkMode ? "Dark mode is on." : "Dark mode is off.");
 });
 elements.kidsMode.addEventListener("change", event => {
   state.kidsMode = event.target.checked;
