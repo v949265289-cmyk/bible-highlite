@@ -1,0 +1,4 @@
+project_id = "bible-highlight"
+
+[functions.send-reading-reminders]
+verify_jwt = false

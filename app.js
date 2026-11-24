@@ -18,12 +18,21 @@ const state = {
   currentSpeechMode: null,
   currentSpeechWord: "",
   currentSpeechTimer: null,
+  kidsPractice: false,
+  kidsPracticeTimer: null,
   quietMode: false,
   bedtimeMode: false,
   darkMode: false,
   kidsMode: false,
   backgroundTheme: "plain"
 };
+
+const OWNER_EMAIL = "v949265289@gmail.com";
+const SITE_CONFIG = window.BIBLE_SITE_CONFIG || {};
+const SHARE_URL = SITE_CONFIG.publicUrl || window.location.href;
+let supabaseClient = null;
+let reminderClient = null;
+let visitorPresenceChannel = null;
 
 const elements = {
   bookName: document.querySelector("#bookName"),
@@ -58,12 +67,48 @@ const elements = {
   darkMode: document.querySelector("#darkMode"),
   themeButton: document.querySelector("#themeButton"),
   kidsMode: document.querySelector("#kidsMode"),
+  kidsPractice: document.querySelector("#kidsPractice"),
+  readingReminderTime: document.querySelector("#readingReminderTime"),
+  enableReadingReminder: document.querySelector("#enableReadingReminder"),
+  disableReadingReminder: document.querySelector("#disableReadingReminder"),
+  readingReminderStatus: document.querySelector("#readingReminderStatus"),
   backgroundTheme: document.querySelector("#backgroundTheme"),
   settingsDialog: document.querySelector("#settingsDialog"),
   accountDialog: document.querySelector("#accountDialog"),
   profileName: document.querySelector("#profileName"),
   accountEmail: document.querySelector("#accountEmail"),
   profileForm: document.querySelector("#profileForm"),
+  ownerAccessButton: document.querySelector("#ownerAccessButton"),
+  ownerDialog: document.querySelector("#ownerDialog"),
+  closeOwnerDialog: document.querySelector("#closeOwnerDialog"),
+  ownerLoginForm: document.querySelector("#ownerLoginForm"),
+  ownerGoogleSignIn: document.querySelector("#ownerGoogleSignIn"),
+  ownerStatus: document.querySelector("#ownerStatus"),
+  ownerWorkspace: document.querySelector("#ownerWorkspace"),
+  activeVisitorCount: document.querySelector("#activeVisitorCount"),
+  eventTitle: document.querySelector("#eventTitle"),
+  eventDate: document.querySelector("#eventDate"),
+  eventTime: document.querySelector("#eventTime"),
+  eventDetails: document.querySelector("#eventDetails"),
+  saveOwnerEvent: document.querySelector("#saveOwnerEvent"),
+  clearEvent: document.querySelector("#clearEvent"),
+  updateForm: document.querySelector("#updateForm"),
+  updateTitle: document.querySelector("#updateTitle"),
+  updateBody: document.querySelector("#updateBody"),
+  ownerUpdatesList: document.querySelector("#ownerUpdatesList"),
+  ownerSignOut: document.querySelector("#ownerSignOut"),
+  updatesSection: document.querySelector("#updatesSection"),
+  updatesStatus: document.querySelector("#updatesStatus"),
+  publicUpdatesList: document.querySelector("#publicUpdatesList"),
+  siteVisitCount: document.querySelector("#siteVisitCount"),
+  siteVisitStatus: document.querySelector("#siteVisitStatus"),
+  shareButton: document.querySelector("#shareButton"),
+  shareDialog: document.querySelector("#shareDialog"),
+  closeShare: document.querySelector("#closeShare"),
+  shareLink: document.querySelector("#shareLink"),
+  copyShareLink: document.querySelector("#copyShareLink"),
+  shareStatus: document.querySelector("#shareStatus"),
+  whatsappShare: document.querySelector("#whatsappShare"),
   notesDialog: document.querySelector("#notesDialog"),
   verseLabelForm: document.querySelector("#verseLabelForm"),
   verseLabelInput: document.querySelector("#verseLabelInput"),
@@ -271,6 +316,7 @@ function loadReadingSettings() {
   elements.bedtimeMode.checked = state.bedtimeMode;
   elements.darkMode.checked = state.darkMode;
   elements.kidsMode.checked = state.kidsMode;
+  elements.kidsPractice.checked = false;
   elements.sleepTimer.value = localStorage.getItem("bibleSleepTimer") || "0";
   applyBackgroundTheme(localStorage.getItem("bibleBackgroundTheme") || "plain");
   applyDarkMode(state.darkMode);
@@ -287,6 +333,358 @@ function applyDarkMode(enabled) {
   elements.themeButton.setAttribute("aria-label", enabled ? "Switch to light mode" : "Switch to dark mode");
   elements.themeButton.title = enabled ? "Switch to light mode" : "Switch to dark mode";
   localStorage.setItem("bibleDarkMode", String(enabled));
+}
+
+function setOwnerStatus(message, isError = false) {
+  elements.ownerStatus.textContent = message;
+  elements.ownerStatus.classList.toggle("error", isError);
+}
+
+function renderUpdate(update, allowDelete = false) {
+  const article = document.createElement(allowDelete ? "div" : "article");
+  article.className = allowDelete ? "owner-update-item" : "public-update";
+  const content = document.createElement("div");
+  content.className = "update-content";
+  const title = document.createElement(allowDelete ? "strong" : "h3");
+  title.textContent = update.title;
+  const body = document.createElement("p");
+  body.textContent = update.body;
+  const time = document.createElement("time");
+  time.dateTime = update.created_at;
+  const date = new Date(update.created_at);
+  time.textContent = Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+  content.append(title, body, time);
+  article.appendChild(content);
+
+  if (allowDelete) {
+    const removeButton = document.createElement("button");
+    removeButton.className = "owner-update-delete";
+    removeButton.type = "button";
+    removeButton.dataset.deleteUpdate = update.id;
+    removeButton.textContent = "Delete";
+    article.appendChild(removeButton);
+  }
+  return article;
+}
+
+async function loadSiteUpdates() {
+  const { data, error } = await supabaseClient
+    .from("site_updates")
+    .select("id,title,body,created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) {
+    elements.updatesStatus.textContent = `Updates could not be loaded: ${error.message}`;
+    setOwnerStatus(`Updates could not be loaded: ${error.message}`, true);
+    return;
+  }
+
+  elements.updatesStatus.textContent = data.length ? "" : "There are no updates yet.";
+  elements.publicUpdatesList.replaceChildren(...data.map(update => renderUpdate(update)));
+  elements.ownerUpdatesList.replaceChildren(...data.map(update => renderUpdate(update, true)));
+}
+
+async function updateOwnerSession(session) {
+  const user = session && session.user;
+  const isOwner = Boolean(
+    user &&
+    typeof user.email === "string" &&
+    user.email.toLowerCase() === OWNER_EMAIL &&
+    user.email_confirmed_at
+  );
+  elements.ownerLoginForm.hidden = isOwner;
+  elements.ownerWorkspace.hidden = !isOwner;
+
+  if (isOwner) {
+    setOwnerStatus(`Signed in as ${OWNER_EMAIL}.`);
+    const savedEvent = JSON.parse(localStorage.getItem("ownerBibleEvent") || "null");
+    elements.eventTitle.value = savedEvent && typeof savedEvent.title === "string" ? savedEvent.title : "";
+    elements.eventDate.value = savedEvent && typeof savedEvent.date === "string" ? savedEvent.date : "";
+    elements.eventTime.value = savedEvent && typeof savedEvent.time === "string" ? savedEvent.time : "";
+    elements.eventDetails.value = savedEvent && typeof savedEvent.details === "string" ? savedEvent.details : "";
+    await loadSiteUpdates();
+  } else if (user && user.email) {
+    setOwnerStatus("This account is not authorized for the owner panel.", true);
+  }
+}
+
+function connectVisitorPresence() {
+  const presenceKey = window.crypto && typeof window.crypto.randomUUID === "function"
+    ? window.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  visitorPresenceChannel = supabaseClient.channel("bible-live-visitors", {
+    config: { presence: { key: presenceKey } }
+  });
+  visitorPresenceChannel.on("presence", { event: "sync" }, () => {
+    const presence = visitorPresenceChannel.presenceState();
+    const count = Object.values(presence).reduce((total, sessions) => total + sessions.length, 0);
+    elements.activeVisitorCount.textContent = String(count);
+  });
+  visitorPresenceChannel.subscribe(async status => {
+    if (status === "SUBSCRIBED") {
+      try {
+        const result = await visitorPresenceChannel.track({ online: true });
+        if (result !== "ok") {
+          setOwnerStatus(`Live visitor count could not start: ${result}.`, true);
+        }
+      } catch (error) {
+        setOwnerStatus(`Live visitor count could not start: ${error.message}`, true);
+      }
+    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      setOwnerStatus(`Live visitor count connection failed: ${status}.`, true);
+    }
+  });
+}
+
+async function initializeOwnerFeatures() {
+  const config = window.BIBLE_SUPABASE_CONFIG;
+  if (!config || !config.url || !config.anonKey) {
+    setOwnerStatus("Set up Supabase to enable owner sign-in and live visitor counts. See supabase/setup.md.");
+    return;
+  }
+
+  try {
+    const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    supabaseClient = createClient(config.url, config.anonKey);
+    elements.updatesSection.hidden = false;
+    await loadSiteUpdates();
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+    await updateOwnerSession(data.session);
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        updateOwnerSession(session).catch(error => {
+          setOwnerStatus(`Owner session could not be checked: ${error.message}`, true);
+        });
+      }, 0);
+    });
+    connectVisitorPresence();
+  } catch (error) {
+    setOwnerStatus(`Owner tools could not connect: ${error.message}`, true);
+  }
+}
+
+function setReadingReminderStatus(message, isError = false) {
+  elements.readingReminderStatus.textContent = message;
+  elements.readingReminderStatus.classList.toggle("error", isError);
+}
+
+async function getReminderClient() {
+  const config = window.BIBLE_SUPABASE_CONFIG;
+  if (!config || !config.url || !config.anonKey) {
+    throw new Error("Set up the Supabase project first. See supabase/setup.md.");
+  }
+  if (reminderClient) return reminderClient;
+
+  const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+  reminderClient = createClient(config.url, config.anonKey, {
+    auth: { storageKey: "bible-reading-reminder-auth" }
+  });
+  return reminderClient;
+}
+
+async function getReminderUser(client) {
+  const { data: sessionData, error: sessionError } = await client.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (sessionData.session) return sessionData.session.user;
+
+  const { data, error } = await client.auth.signInAnonymously();
+  if (error) throw error;
+  if (!data.user) throw new Error("Supabase did not create a reminder account.");
+  return data.user;
+}
+
+function decodeVapidPublicKey(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const raw = window.atob(padded);
+  return Uint8Array.from(raw, character => character.charCodeAt(0));
+}
+
+async function initializeReadingReminder() {
+  const siteConfig = window.BIBLE_SUPABASE_CONFIG;
+  if (!siteConfig || !siteConfig.url || !siteConfig.anonKey) {
+    setReadingReminderStatus("Set up Supabase and the VAPID public key to enable reminders.");
+    return;
+  }
+
+  try {
+    const client = await getReminderClient();
+    const { data, error } = await client.auth.getSession();
+    if (error) throw error;
+    if (!data.session) {
+      setReadingReminderStatus("No daily reminder is enabled on this device.");
+      return;
+    }
+
+    const { data: reminder, error: reminderError } = await client
+      .from("reading_reminders")
+      .select("enabled, reminder_time")
+      .eq("user_id", data.session.user.id)
+      .maybeSingle();
+    if (reminderError) throw reminderError;
+    if (reminder && reminder.enabled) {
+      elements.readingReminderTime.value = reminder.reminder_time;
+      setReadingReminderStatus(`Daily reminder is on for ${reminder.reminder_time}.`);
+    } else {
+      setReadingReminderStatus("No daily reminder is enabled on this device.");
+    }
+  } catch (error) {
+    setReadingReminderStatus(`Reminder setup could not be checked: ${error.message}`, true);
+  }
+}
+
+async function enableReadingReminder() {
+  const siteConfig = window.BIBLE_SITE_CONFIG || {};
+  if (!siteConfig.vapidPublicKey) {
+    throw new Error("Add the VAPID public key to site-config.js first.");
+  }
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    throw new Error("This browser does not support background notifications.");
+  }
+  if (!window.isSecureContext) {
+    throw new Error("Reminders require the site to be open over HTTPS or localhost.");
+  }
+  if (!elements.readingReminderTime.value) {
+    throw new Error("Choose a daily reminder time.");
+  }
+
+  let permission = Notification.permission;
+  if (permission === "default") permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    throw new Error("Allow notifications for this site in your browser settings, then try again.");
+  }
+
+  const applicationServerKey = decodeVapidPublicKey(siteConfig.vapidPublicKey);
+  if (applicationServerKey.length !== 65) {
+    throw new Error("The VAPID public key in site-config.js is invalid.");
+  }
+  const client = await getReminderClient();
+  const user = await getReminderUser(client);
+  const registration = await navigator.serviceWorker.register("./service-worker.js");
+  await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+  const existingKey = subscription && subscription.options.applicationServerKey;
+  if (subscription && existingKey) {
+    const existingKeyBytes = new Uint8Array(existingKey);
+    const keysMatch = existingKeyBytes.length === applicationServerKey.length &&
+      existingKeyBytes.every((byte, index) => byte === applicationServerKey[index]);
+    if (!keysMatch) {
+      const unsubscribed = await subscription.unsubscribe();
+      if (!unsubscribed) throw new Error("The existing browser subscription could not be replaced.");
+      subscription = null;
+    }
+  }
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey
+    });
+  }
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const { error } = await client.from("reading_reminders").upsert({
+    user_id: user.id,
+    enabled: true,
+    reminder_time: elements.readingReminderTime.value,
+    timezone,
+    subscription: subscription.toJSON()
+  }, { onConflict: "user_id" });
+  if (error) throw error;
+
+  setReadingReminderStatus(`Daily reminder enabled for ${elements.readingReminderTime.value}.`);
+}
+
+async function disableReadingReminder() {
+  if (!reminderClient) {
+    setReadingReminderStatus("No reminder account is saved on this device.");
+    return;
+  }
+  const { data, error: sessionError } = await reminderClient.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!data.session) {
+    setReadingReminderStatus("No reminder account is saved on this device.");
+    return;
+  }
+
+  const { error } = await reminderClient
+    .from("reading_reminders")
+    .delete()
+    .eq("user_id", data.session.user.id);
+  if (error) throw error;
+
+  const registration = await navigator.serviceWorker.getRegistration();
+  const subscription = registration && await registration.pushManager.getSubscription();
+  if (subscription) await subscription.unsubscribe();
+  setReadingReminderStatus("Daily reminder turned off.");
+}
+
+async function updateTotalVisitCount(counterUrl) {
+  try {
+    const response = await fetch(counterUrl);
+    if (!response.ok) throw new Error(`Counter returned HTTP ${response.status}`);
+    const result = await response.json();
+    if (typeof result.count !== "string" && typeof result.count !== "number") {
+      throw new Error("Counter response did not include a valid total.");
+    }
+    elements.siteVisitCount.textContent = String(result.count);
+    elements.siteVisitStatus.textContent = "Page views";
+  } catch (error) {
+    elements.siteVisitStatus.textContent = `Visit count unavailable: ${error.message}`;
+  }
+}
+
+function initializeVisitCounter() {
+  const code = SITE_CONFIG.goatCounterCode;
+  if (!code || !/^[a-z0-9-]+$/i.test(code)) {
+    elements.siteVisitStatus.textContent = "Add your GoatCounter site code in site-config.js.";
+    return;
+  }
+
+  const publicUrl = SITE_CONFIG.publicUrl;
+  if (!publicUrl || window.location.origin !== new URL(publicUrl).origin) {
+    elements.siteVisitStatus.textContent = "Visit counter is active on the published website.";
+    return;
+  }
+
+  const goatCounterUrl = `https://${code}.goatcounter.com`;
+  const counterUrl = `${goatCounterUrl}/counter/TOTAL.json`;
+  const script = document.createElement("script");
+  script.src = "https://gc.zgo.at/count.js";
+  script.async = true;
+  script.dataset.goatcounter = `${goatCounterUrl}/count`;
+  script.addEventListener("load", () => {
+    window.setTimeout(() => updateTotalVisitCount(counterUrl), 1200);
+  });
+  script.addEventListener("error", () => {
+    elements.siteVisitStatus.textContent = "Visit tracking could not load; check your connection or blocker.";
+  });
+  document.head.appendChild(script);
+}
+
+function stopKidsPractice() {
+  state.kidsPractice = false;
+  elements.kidsPractice.checked = false;
+  if (state.kidsPracticeTimer !== null) {
+    window.clearTimeout(state.kidsPracticeTimer);
+    state.kidsPracticeTimer = null;
+  }
+}
+
+function startKidsPractice() {
+  if (!("speechSynthesis" in window)) {
+    elements.kidsPractice.checked = false;
+    setReadingStatus("Text-to-speech is not supported in this browser.");
+    return;
+  }
+
+  state.kidsPractice = true;
+  state.kidsPracticeTimer = window.setTimeout(() => {
+    state.kidsPracticeTimer = null;
+    stopSpeech(false);
+    setReadingStatus("Kids Practice stopped automatically after 50 minutes.");
+  }, 50 * 60 * 1000);
+  speakChapter();
 }
 
 function applyBackgroundTheme(theme) {
@@ -427,6 +825,7 @@ function speakVerse() {
   utterance.addEventListener("end", () => finishSpeechAt(verseIndex));
   utterance.addEventListener("error", event => {
     if (event.error !== "canceled" && event.error !== "interrupted") {
+      if (state.kidsPractice) stopSpeech(false);
       setReadingStatus("Speech could not be played. Try again.");
     }
   });
@@ -440,7 +839,7 @@ function speakChapter() {
     setReadingStatus("Text-to-speech is not supported in this browser.");
     return;
   }
-  stopSpeech(false);
+  stopSpeech(false, state.kidsPractice);
   const book = state.books[state.bookIndex];
   const verses = book.chapters[state.chapterIndex];
   state.currentSpeechMode = "chapter";
@@ -453,6 +852,7 @@ function speakChapter() {
     });
     utterance.addEventListener("error", event => {
       if (event.error !== "canceled" && event.error !== "interrupted") {
+        if (state.kidsPractice) stopSpeech(false);
         setReadingStatus("Speech could not be played. Try again.");
       }
     });
@@ -531,10 +931,16 @@ function finishSpeechAt(index, chapterFinished = false) {
   elements.verseSelect.value = String(index);
   updateBookmarkButton();
   updateReadingSceneBackground(index);
-  setReadingStatus(`${chapterFinished ? "Finished" : "Finished reading"} at ${currentReference(index)}`);
+  if (state.kidsPractice && chapterFinished) {
+    stopKidsPractice();
+    setReadingStatus(`Kids Practice finished reading this chapter at ${currentReference(index)}.`);
+  } else {
+    setReadingStatus(`${chapterFinished ? "Finished" : "Finished reading"} at ${currentReference(index)}`);
+  }
 }
 
-function stopSpeech(showStatus = true) {
+function stopSpeech(showStatus = true, preserveKidsPractice = false) {
+  if (state.kidsPractice && !preserveKidsPractice) stopKidsPractice();
   const stoppedAt = state.currentSpeechVerse;
   const mode = state.currentSpeechMode;
   const stoppedWord = state.currentSpeechWord;
@@ -915,6 +1321,26 @@ document.querySelector("#settingsButton").addEventListener("click", () => {
 document.querySelector("#closeSettings").addEventListener("click", () => {
   elements.settingsDialog.close();
 });
+elements.enableReadingReminder.addEventListener("click", async () => {
+  elements.enableReadingReminder.disabled = true;
+  try {
+    await enableReadingReminder();
+  } catch (error) {
+    setReadingReminderStatus(`Reminder could not be enabled: ${error.message}`, true);
+  } finally {
+    elements.enableReadingReminder.disabled = false;
+  }
+});
+elements.disableReadingReminder.addEventListener("click", async () => {
+  elements.disableReadingReminder.disabled = true;
+  try {
+    await disableReadingReminder();
+  } catch (error) {
+    setReadingReminderStatus(`Reminder could not be turned off: ${error.message}`, true);
+  } finally {
+    elements.disableReadingReminder.disabled = false;
+  }
+});
 document.querySelector("#accountButton").addEventListener("click", () => {
   const savedProfile = JSON.parse(localStorage.getItem("bibleGuestProfile") || "null");
   elements.profileName.value = savedProfile && typeof savedProfile.name === "string" ? savedProfile.name : "";
@@ -943,6 +1369,118 @@ document.querySelector("#continueAsGuest").addEventListener("click", () => {
   localStorage.setItem("bibleAccountMode", "guest");
   elements.accountDialog.close();
   setReadingStatus("You're continuing as a guest without saving a name or email.");
+});
+elements.ownerAccessButton.addEventListener("click", () => {
+  elements.accountDialog.close();
+  elements.ownerDialog.showModal();
+});
+elements.closeOwnerDialog.addEventListener("click", () => elements.ownerDialog.close());
+elements.ownerLoginForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!supabaseClient) {
+    setOwnerStatus("Set up Supabase first. See supabase/setup.md.");
+    return;
+  }
+
+  elements.ownerGoogleSignIn.disabled = true;
+  try {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.href
+      }
+    });
+    if (error) throw error;
+  } catch (error) {
+    setOwnerStatus(`Sign-in failed: ${error.message}`, true);
+    elements.ownerGoogleSignIn.disabled = false;
+  }
+});
+elements.ownerSignOut.addEventListener("click", async () => {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    setOwnerStatus(`Could not sign out: ${error.message}`, true);
+    return;
+  }
+  setOwnerStatus("Signed out.");
+});
+elements.saveOwnerEvent.addEventListener("click", () => {
+  localStorage.setItem("ownerBibleEvent", JSON.stringify({
+    title: elements.eventTitle.value.trim(),
+    date: elements.eventDate.value,
+    time: elements.eventTime.value,
+    details: elements.eventDetails.value.trim()
+  }));
+  setOwnerStatus("Event saved for the owner.");
+});
+elements.clearEvent.addEventListener("click", () => {
+  elements.eventTitle.value = "";
+  elements.eventDate.value = "";
+  elements.eventTime.value = "";
+  elements.eventDetails.value = "";
+  localStorage.removeItem("ownerBibleEvent");
+  setOwnerStatus("Owner event cleared.");
+});
+elements.updateForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!supabaseClient) {
+    setOwnerStatus("Set up Supabase before publishing updates.", true);
+    return;
+  }
+
+  const title = elements.updateTitle.value.trim();
+  const body = elements.updateBody.value.trim();
+  if (!title || !body) {
+    setOwnerStatus("Enter both an update title and details.", true);
+    return;
+  }
+
+  const submitButton = document.querySelector("#publishUpdate");
+  submitButton.disabled = true;
+  try {
+    const { error } = await supabaseClient.from("site_updates").insert({ title, body });
+    if (error) throw error;
+    elements.updateForm.reset();
+    setOwnerStatus("Update published.");
+    await loadSiteUpdates();
+  } catch (error) {
+    setOwnerStatus(`Update could not be published: ${error.message}`, true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+elements.ownerUpdatesList.addEventListener("click", async event => {
+  const button = event.target.closest("[data-delete-update]");
+  if (!button || !window.confirm("Delete this update from the public feed?")) return;
+  try {
+    const { error } = await supabaseClient
+      .from("site_updates")
+      .delete()
+      .eq("id", button.dataset.deleteUpdate);
+    if (error) throw error;
+    setOwnerStatus("Update deleted.");
+    await loadSiteUpdates();
+  } catch (error) {
+    setOwnerStatus(`Update could not be deleted: ${error.message}`, true);
+  }
+});
+elements.shareButton.addEventListener("click", () => {
+  elements.shareLink.value = SHARE_URL;
+  elements.whatsappShare.href = `https://wa.me/?text=${encodeURIComponent(`Bible Highlight: ${SHARE_URL}`)}`;
+  elements.shareStatus.textContent = "";
+  elements.shareStatus.classList.remove("error");
+  elements.shareDialog.showModal();
+});
+elements.closeShare.addEventListener("click", () => elements.shareDialog.close());
+elements.shareLink.addEventListener("click", event => event.target.select());
+elements.copyShareLink.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(SHARE_URL);
+    elements.shareStatus.textContent = "Website link copied.";
+  } catch (error) {
+    elements.shareStatus.textContent = `Could not copy the link: ${error.message}`;
+    elements.shareStatus.classList.add("error");
+  }
 });
 elements.speechVolume.addEventListener("input", event => {
   const volume = Number(event.target.value);
@@ -986,6 +1524,15 @@ elements.kidsMode.addEventListener("change", event => {
   setReadingStatus(state.kidsMode
     ? "Kids Mode is on. Tap any verse to hear it read aloud."
     : "Kids Mode is off.");
+});
+elements.kidsPractice.addEventListener("change", event => {
+  if (event.target.checked) {
+    startKidsPractice();
+  } else {
+    stopKidsPractice();
+    stopSpeech(false);
+    setReadingStatus("Kids Practice is off.");
+  }
 });
 elements.backgroundTheme.addEventListener("change", event => {
   applyBackgroundTheme(event.target.value);
@@ -1052,7 +1599,9 @@ elements.speechVoice.addEventListener("change", event => {
 elements.playSelection.addEventListener("click", speakSelection);
 elements.playVerse.addEventListener("click", speakVerse);
 elements.playChapter.addEventListener("click", speakChapter);
-elements.stopSpeech.addEventListener("click", stopSpeech);
+elements.stopSpeech.addEventListener("click", () => {
+  stopSpeech();
+});
 elements.pauseSpeech.addEventListener("click", () => {
   if (!("speechSynthesis" in window) || !speechSynthesis.speaking) return;
   if (speechSynthesis.paused) {
@@ -1087,3 +1636,6 @@ elements.closeBookmarks.addEventListener("click", () => elements.bookmarksDialog
 loadBible().catch(error => {
   elements.verses.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
 });
+initializeOwnerFeatures();
+initializeReadingReminder();
+initializeVisitCounter();

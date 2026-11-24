@@ -43,6 +43,19 @@
       <button id="openNotes" type="button">📝 My notes</button>
       <button id="openPrayerList" type="button">🙏 Prayer list</button>
     </div>
+    <div class="visitor-counter" aria-live="polite">
+      <span>All-time visits</span>
+      <strong id="siteVisitCount">—</strong>
+      <span id="siteVisitStatus" class="visitor-counter-status" role="status">Counter setup required</span>
+    </div>
+    <div class="share-action">
+      <button id="shareButton" type="button">Share this app</button>
+    </div>
+    <section id="updatesSection" class="updates-section" hidden aria-labelledby="updatesHeading">
+      <h2 id="updatesHeading">Latest updates</h2>
+      <p id="updatesStatus" class="settings-help" role="status"></p>
+      <div id="publicUpdatesList" class="updates-list"></div>
+    </section>
     <article id="verses" class="verses" aria-live="polite"></article>
   </main>
 
@@ -94,6 +107,25 @@
     </div>
   </dialog>
 
+  <dialog id="shareDialog" class="share-dialog">
+    <div class="share-box">
+      <div class="settings-header">
+        <h2>Share Bible Highlight</h2>
+        <button id="closeShare" class="icon-button" type="button" aria-label="Close sharing">×</button>
+      </div>
+      <p class="settings-help">Share the app with someone or copy its website link.</p>
+      <div class="share-link-row">
+        <input id="shareLink" type="url" aria-label="Website link" readonly>
+        <button id="copyShareLink" class="primary-action" type="button">Copy link</button>
+      </div>
+      <p id="shareStatus" class="account-setup-note" role="status" aria-live="polite"></p>
+      <a id="whatsappShare" class="primary-action whatsapp-share" target="_blank" rel="noopener noreferrer">Share on WhatsApp</a>
+      <div class="share-qr">
+        <img id="shareQr" src="share-qr.png" alt="Scan this QR code to open Bible Highlight">
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="settingsDialog" class="settings-dialog">
     <div class="settings-box">
       <div class="settings-header">
@@ -132,6 +164,21 @@
         <input id="kidsMode" type="checkbox">
         <span>Kids Mode (tap a verse to hear it)</span>
       </label>
+      <label class="setting-toggle">
+        <input id="kidsPractice" type="checkbox">
+        <span>Kids Practice (read this chapter; stop within 50 minutes)</span>
+      </label>
+      <section class="reminder-settings" aria-labelledby="readingReminderHeading">
+        <h3 id="readingReminderHeading">Daily Bible reading reminder</h3>
+        <label class="reminder-time-label" for="readingReminderTime">Remind me every day at</label>
+        <input id="readingReminderTime" type="time" value="19:00">
+        <div class="reminder-actions">
+          <button id="enableReadingReminder" class="primary-action" type="button">Enable reminder</button>
+          <button id="disableReadingReminder" type="button">Turn off</button>
+        </div>
+        <p id="readingReminderStatus" class="settings-help" role="status" aria-live="polite">Checking reminder setup…</p>
+        <p class="settings-help">Your browser will show a notification even when this site is closed. Notification sound depends on your device and browser settings.</p>
+      </section>
       <label class="setting-row" for="backgroundTheme">
         <span>Background style</span>
         <select id="backgroundTheme" aria-label="Background style">
@@ -166,6 +213,64 @@
       </form>
       <p class="account-setup-note">This local profile is not verified. Your name and email are saved only in this browser; they are not sent or synced.</p>
       <button id="continueAsGuest" class="primary-action" type="button">Continue as guest</button>
+      <button id="ownerAccessButton" class="primary-action owner-access-button" type="button">Owner panel</button>
+    </div>
+  </dialog>
+
+  <dialog id="ownerDialog" class="owner-dialog">
+    <div class="owner-box">
+      <div class="settings-header">
+        <h2>Owner panel</h2>
+        <button id="closeOwnerDialog" class="icon-button" type="button" aria-label="Close owner panel">×</button>
+      </div>
+      <form id="ownerLoginForm" class="owner-login">
+        <p class="settings-help">Sign in with the owner's Google account.</p>
+        <button id="ownerGoogleSignIn" class="primary-action" type="submit">Sign in with Google</button>
+      </form>
+      <p id="ownerStatus" class="account-setup-note" role="status" aria-live="polite"></p>
+      <section id="ownerWorkspace" class="owner-workspace" hidden aria-label="Owner tools">
+        <div class="owner-presence">
+          <strong id="activeVisitorCount">—</strong>
+          <span>visitors online right now</span>
+        </div>
+        <section class="event-panel" aria-labelledby="eventPanelHeading">
+          <h3 id="eventPanelHeading">My event</h3>
+          <label class="account-field" for="eventTitle">
+            Event name
+            <input id="eventTitle" type="text" maxlength="120" placeholder="Church service, Bible study…">
+          </label>
+          <div class="event-panel-row">
+            <label class="account-field" for="eventDate">
+              Date
+              <input id="eventDate" type="date">
+            </label>
+            <label class="account-field" for="eventTime">
+              Time
+              <input id="eventTime" type="time">
+            </label>
+          </div>
+          <label class="account-field" for="eventDetails">
+            Details
+            <textarea id="eventDetails" maxlength="1000" rows="3" placeholder="Add location or notes"></textarea>
+          </label>
+          <div class="event-actions">
+            <button id="saveOwnerEvent" class="primary-action" type="button">Save event</button>
+            <button id="clearEvent" class="event-clear-button" type="button">Clear event</button>
+          </div>
+        </section>
+        <form id="updateForm" class="owner-update-form">
+          <label class="account-field" for="updateTitle">Update title
+            <input id="updateTitle" type="text" maxlength="120" required>
+          </label>
+          <label class="account-field" for="updateBody">Update details
+            <textarea id="updateBody" maxlength="3000" rows="4" required></textarea>
+          </label>
+          <button id="publishUpdate" class="primary-action" type="submit">Publish update</button>
+        </form>
+        <h3>Manage updates</h3>
+        <div id="ownerUpdatesList" class="owner-updates-list"></div>
+        <button id="ownerSignOut" class="owner-signout" type="button">Sign out</button>
+      </section>
     </div>
   </dialog>
 
@@ -225,6 +330,8 @@
   </nav>
 
   <script src="asv.js"></script>
+  <script src="site-config.js"></script>
+  <script src="supabase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
